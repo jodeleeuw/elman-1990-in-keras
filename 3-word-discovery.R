@@ -60,10 +60,75 @@ letter.encoder <- function(letter){
 letter.encoder('a')
 
 # create sequences. we'll make 100 different
-# inputs, each with 50 letters. This will get
+# inputs, each with 54 letters. This will get
 # us about the same amount of training data
-# as Elman (4,963 letters).
+# as Elman (4,963 letters). We use 54 letters to 
+# match the length of Elman's test string in 
+# figure 6
 
 generate.input <- function(length){
   sentence <- sample(words, length, replace=T)
+  sentence.letters <- str_split(paste0(sentence, collapse=""), pattern="", simplify=T)[1,]
+  sentence.letters <- sentence.letters[1:length]
+  input <- array(data=0, dim=c(length, 5))
+  for(i in 1:length){
+    input[i,] <- letter.encoder(sentence.letters[i])
+  }
+  return(input)
 }
+
+generate.output <- function(input){
+  output <- array(data=0, dim=c(nrow(input), 5))
+  output[1:(nrow(input)-1),] <- input[2:nrow(input),]
+  output[nrow(input),] <- letter.encoder('a') # add a fixed prediction at the end.
+  return(output)
+}
+
+input <- array(data=0, dim=c(200, 54, 5))
+output <- array(data=0, dim=c(200, 54, 5))
+
+for(i in 1:200){
+  input[i,,] <- generate.input(54)
+  output[i,,] <- generate.output(input[i,,])
+}
+
+### MODEL
+
+model <- keras_model_sequential()
+model %>%
+  layer_simple_rnn(units=20, input_shape=c(54,5),return_sequences = TRUE) %>%
+  layer_dense(units=5, activation="sigmoid")
+summary(model)
+
+# compile the model
+model %>% compile(
+  optimizer = optimizer_nadam(),
+  loss = 'mean_squared_error'
+)
+
+# fit the model for 10 epcohs
+model %>% fit(input, output, epochs=100, validation_split = 0.2)
+
+
+### PREDICTIONS
+
+test.letters <- 'amanyyearsagoaboyandgirllivedbytheseatheyplayedhappily'
+test.letters <- str_split(test.letters, pattern="", simplify=T)[1,]
+input.novel <- array(data=0, dim=c(54,5))
+for(i in 1:54){
+  input.novel[i,] <- letter.encoder(test.letters[i])
+}
+output.novel <- generate.output(input.novel)
+
+input.novel <- array_reshape(input.novel, dim = c(1,54,5))
+output.novel <- array_reshape(output.novel, dim= c(1,54,5))
+
+prediction <- model %>% predict(input.novel)
+
+# calculate RMSE, averaging over the 5 outputs per timestep
+sq.error <- (prediction - output.novel)^2
+mse <- apply(sq.error, 2, mean)
+rmse <- sqrt(mse)
+
+plot(1:54, rmse, type="l")
+text(x=1:54, y=rmse, labels=test.letters[2:54])
