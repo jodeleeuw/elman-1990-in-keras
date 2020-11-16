@@ -106,12 +106,14 @@ model %>% compile(
   loss = 'mean_squared_error'
 )
 
-# fit the model for 10 epcohs
+# fit the model for 100 epcohs
 model %>% fit(input, output, epochs=100, validation_split = 0.2)
 
 
 ### PREDICTIONS
 
+# Use the example sentence from Elman.
+# Need an extra letter at the start so that prediction starts with the "m" in many.
 test.letters <- 'amanyyearsagoaboyandgirllivedbytheseatheyplayedhappily'
 test.letters <- str_split(test.letters, pattern="", simplify=T)[1,]
 input.novel <- array(data=0, dim=c(54,5))
@@ -119,6 +121,7 @@ for(i in 1:54){
   input.novel[i,] <- letter.encoder(test.letters[i])
 }
 output.novel <- generate.output(input.novel)
+
 
 input.novel <- array_reshape(input.novel, dim = c(1,54,5))
 output.novel <- array_reshape(output.novel, dim= c(1,54,5))
@@ -130,5 +133,6 @@ sq.error <- (prediction - output.novel)^2
 mse <- apply(sq.error, 2, mean)
 rmse <- sqrt(mse)
 
+# recreate the figure from the paper
 plot(1:54, rmse, type="l")
 text(x=1:54, y=rmse, labels=test.letters[2:54])
